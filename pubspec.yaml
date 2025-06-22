@@ -31,6 +31,10 @@ dependencies:
   flutter:
     sdk: flutter
 
+  fl_chart: ^0.66.2
+
+  intl: ^0.19.0
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
@@ -59,9 +63,11 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    - assets/sprintify-logo.png
+    - assets/profile-img.png
+    - assets/profile-placeholder.png
+    - assets/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -85,6 +91,59 @@ flutter:
   #       - asset: fonts/TrajanPro.ttf
   #       - asset: fonts/TrajanPro_Bold.ttf
   #         weight: 700
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto/Roboto-Bold.ttf
+        - asset: assets/fonts/Roboto/Roboto-Italic.ttf
+        - asset: assets/fonts/Roboto/Roboto-Light.ttf
+        - asset: assets/fonts/Roboto/Roboto-Medium.ttf
+    - family: Lato
+      fonts:
+        - asset: assets/fonts/Lato/Lato-Regular.ttf
+        - asset: assets/fonts/Lato/Lato-Bold.ttf
+        - asset: assets/fonts/Lato/Lato-Italic.ttf
+        - asset: assets/fonts/Lato/Lato-Light.ttf
+        - asset: assets/fonts/Lato/Lato-Black.ttf
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins/Poppins-Bold.ttf
+        - asset: assets/fonts/Poppins/Poppins-Italic.ttf
+        - asset: assets/fonts/Poppins/Poppins-Light.ttf
+        - asset: assets/fonts/Poppins/Poppins-SemiBold.ttf
+#    - family: NunitoSans
+#      fonts:
+#        - asset: assets/fonts/Nunito_Sans/NunitoSans-Regular.ttf
+#        - asset: assets/fonts/Nunito_Sans/NunitoSans-Bold.ttf
+#        - asset: assets/fonts/Nunito_Sans/NunitoSans-Italic.ttf
+#        - asset: assets/fonts/Nunito_Sans/NunitoSans-Light.ttf
+#        - asset: assets/fonts/Nunito_Sans/NunitoSans-SemiBold.ttf
+    - family: OpenSans
+      fonts:
+        - asset: assets/fonts/Open_Sans/OpenSans-Regular.ttf
+        - asset: assets/fonts/Open_Sans/OpenSans-Bold.ttf
+        - asset: assets/fonts/Open_Sans/OpenSans-Italic.ttf
+        - asset: assets/fonts/Open_Sans/OpenSans-Light.ttf
+        - asset: assets/fonts/Open_Sans/OpenSans-SemiBold.ttf
+    - family: Catamaran
+      fonts:
+        - asset: assets/fonts/Catamaran/Catamaran-Regular.ttf
+        - asset: assets/fonts/Catamaran/Catamaran-Bold.ttf
+        - asset: assets/fonts/Catamaran/Catamaran-Light.ttf
+        - asset: assets/fonts/Catamaran/Catamaran-SemiBold.ttf
+    - family: Montserrat
+      fonts:
+        - asset: assets/fonts/Montserrat/Montserrat-Regular.ttf
+        - asset: assets/fonts/Montserrat/Montserrat-Bold.ttf
+        - asset: assets/fonts/Montserrat/Montserrat-Italic.ttf
+        - asset: assets/fonts/Montserrat/Montserrat-Light.ttf
+        - asset: assets/fonts/Montserrat/Montserrat-SemiBold.ttf
+    - family: Loved_by_the_King
+      fonts:
+        - asset: assets\fonts\Loved_by_the_King\LovedbytheKing-Regular.ttf
+
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
