@@ -4,6 +4,7 @@ import 'sprint_sessions_screen.dart';
 import 'statistics_screen.dart';
 import 'achievements_screen.dart';
 import 'settings_screen.dart';
+import 'help_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -131,7 +132,7 @@ class DashboardScreen extends StatelessWidget {
                 if (index == 5) {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    MaterialPageRoute(builder: (_) => const HelpScreen()),
                   );
                 }
               },
