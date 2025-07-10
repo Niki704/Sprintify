@@ -10,8 +10,6 @@ import 'settings_screen.dart';
 import 'help_screen.dart';
 import 'home_screen.dart';
 
-// --- MODERNIZED DASHBOARD SCREEN v4 ---
-
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -102,12 +100,29 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-// =================== ADDED: DashboardScreen state with blur overlay flag ===================
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _menuOpen = false;
+  Offset _menuPosition = Offset.zero;
+  Size _menuAnchorSize = Size.zero;
+  final GlobalKey _profileIconKey = GlobalKey();
 
-  void _setMenuOpen(bool open) {
-    setState(() => _menuOpen = open);
+  void _openMenu() {
+    final RenderBox renderBox =
+    _profileIconKey.currentContext!.findRenderObject() as RenderBox;
+    final Offset offset = renderBox.localToGlobal(Offset.zero);
+    final Size size = renderBox.size;
+
+    setState(() {
+      _menuOpen = true;
+      _menuPosition = offset;
+      _menuAnchorSize = size;
+    });
+  }
+
+  void _closeMenu() {
+    setState(() {
+      _menuOpen = false;
+    });
   }
 
   @override
@@ -126,23 +141,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
-          // =================== ADDED: Animated blurred overlay for menu ===================
-          AnimatedOpacity(
-            opacity: _menuOpen ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeInOut,
-            child: IgnorePointer(
-              ignoring: !_menuOpen,
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                child: Container(
-                  color: Colors.black.withOpacity(0.09),
-                  width: double.infinity,
-                  height: double.infinity,
-                ),
-              ),
-            ),
-          ),
+
+          // 1. Main UI, app bar without profile icon
           Column(
             children: [
               SafeArea(
@@ -150,34 +150,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   padding: const EdgeInsets.fromLTRB(0, 12, 0, 6),
                   child: SizedBox(
                     height: 56,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Center(
-                          child: Text(
-                            'Dashboard',
-                            style: TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontWeight: FontWeight.w700,
-                              fontSize: 28,
-                              color: Colors.white.withOpacity(0.97),
-                              letterSpacing: 1.2,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black.withOpacity(0.18),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
+                    child: Center(
+                      child: Text(
+                        'Dashboard',
+                        style: TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 28,
+                          color: Colors.white.withOpacity(0.97),
+                          letterSpacing: 1.2,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withOpacity(0.18),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
-                          ),
+                          ],
                         ),
-                        // =================== CHANGED: Pass blur callback to menu button ===================
-                        Positioned(
-                          right: 16,
-                          child: _ProfileMenuButton(onMenuOpen: _setMenuOpen),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -188,7 +178,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: ListView.separated(
                     padding: const EdgeInsets.only(top: 10, bottom: 18),
                     itemCount: DashboardScreen.dashboardTiles.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 14),
+                    separatorBuilder: (context, index) =>
+                    const SizedBox(height: 14),
                     itemBuilder: (context, index) {
                       return _AnimatedFancyTile(
                         tile: DashboardScreen.dashboardTiles[index],
@@ -196,42 +187,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           if (index == 0) {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                              MaterialPageRoute(
+                                  builder: (_) => const ProfileScreen()),
                             );
                           } else if (index == 1) {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const SetupRaceScreen()),
+                              MaterialPageRoute(
+                                  builder: (_) => const SetupRaceScreen()),
                             );
                           } else if (index == 2) {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const StartRaceScreen()),
+                              MaterialPageRoute(
+                                  builder: (_) => const StartRaceScreen()),
                             );
                           } else if (index == 3) {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const SprintSessionsScreen()),
+                              MaterialPageRoute(
+                                  builder: (_) => const SprintSessionsScreen()),
                             );
                           } else if (index == 4) {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const StatisticsScreen()),
+                              MaterialPageRoute(
+                                  builder: (_) => const StatisticsScreen()),
                             );
                           } else if (index == 5) {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const AchievementsScreen()),
+                              MaterialPageRoute(
+                                  builder: (_) => const AchievementsScreen()),
                             );
                           } else if (index == 6) {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                              MaterialPageRoute(
+                                  builder: (_) => const SettingsScreen()),
                             );
                           } else if (index == 7) {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const HelpScreen()),
+                              MaterialPageRoute(
+                                  builder: (_) => const HelpScreen()),
                             );
                           }
                         },
@@ -243,145 +242,258 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ],
           ),
+
+          // 2. Blur overlay (covers everything except profile icon)
+          if (_menuOpen)
+            AnimatedOpacity(
+              opacity: 1.0,
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOut,
+              child: GestureDetector(
+                onTap: _closeMenu,
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                  child: Container(
+                    color: Colors.black.withOpacity(0.09),
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
+                ),
+              ),
+            ),
+
+          // 3. Profile icon (above blur, never blurred)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 12,
+            right: 16,
+            child: GestureDetector(
+              key: _profileIconKey,
+              onTap: () {
+                if (_menuOpen) {
+                  _closeMenu();
+                } else {
+                  _openMenu();
+                }
+              },
+              child: CircleAvatar(
+                radius: 22,
+                backgroundColor: Colors.white.withOpacity(0.18),
+                child: const Icon(
+                  Icons.account_circle,
+                  color: Colors.white70,
+                  size: 36,
+                ),
+              ),
+            ),
+          ),
+
+
+
+          // 4. Context menu dynamically positioned
+          if (_menuOpen)
+            Builder(
+              builder: (context) {
+                double left = _menuPosition.dx + (_menuAnchorSize.width / 2) - 120;
+                left = left < 8 ? 8 : left;
+                double maxLeft = MediaQuery.of(context).size.width - 248;
+                left = left > maxLeft ? maxLeft : left;
+                double top = _menuPosition.dy + _menuAnchorSize.height + 8;
+                return Positioned(
+                  left: left,
+                  top: top,
+                  child: _CustomProfileMenu(
+                    onClose: _closeMenu,
+                    onMenuSelected: (selected) {
+                      _closeMenu();
+                      switch (selected) {
+                        case 0:
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const ProfileScreen()),
+                          );
+                          break;
+                        case 1:
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const SetupRaceScreen()),
+                          );
+                          break;
+                        case 2:
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const SprintSessionsScreen()),
+                          );
+                          break;
+                        case 3:
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const SettingsScreen()),
+                          );
+                          break;
+                        case 4:
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const HelpScreen()),
+                          );
+                          break;
+                        case 5:
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const HomeScreen()),
+                                (route) => false,
+                          );
+                          break;
+                      }
+                    },
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
   }
-// =================== END changes for blur overlay ===================
 }
 
-// --- MODERN PROFILE MENU BUTTON ---
-class _ProfileMenuButton extends StatefulWidget {
-  final void Function(bool)? onMenuOpen;
-  const _ProfileMenuButton({this.onMenuOpen, super.key});
-
-  @override
-  State<_ProfileMenuButton> createState() => _ProfileMenuButtonState();
-}
-
-class _ProfileMenuButtonState extends State<_ProfileMenuButton> {
-  final GlobalKey _iconKey = GlobalKey();
+// --- CUSTOM PROFILE MENU WIDGET ---
+class _CustomProfileMenu extends StatelessWidget {
+  final void Function()? onClose;
+  final void Function(int selected)? onMenuSelected;
+  const _CustomProfileMenu({this.onClose, this.onMenuSelected});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      key: _iconKey,
-      onTap: () async {
-        // Get the position of the icon for the menu anchor
-        final RenderBox renderBox = _iconKey.currentContext!.findRenderObject() as RenderBox;
-        final Offset offset = renderBox.localToGlobal(Offset.zero);
-        final Size size = renderBox.size;
-
-        widget.onMenuOpen?.call(true);
-
-        final selected = await showMenu<int>(
-          context: context,
-          position: RelativeRect.fromLTRB(
-            offset.dx,
-            offset.dy + size.height + 6, // slightly below the icon
-            offset.dx + size.width,
-            offset.dy,
+    return Material(
+      color: Colors.transparent,
+      elevation: 0,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          width: 240,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE7F1F9),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.07),
+                blurRadius: 14,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          color: const Color(0xFFE7F1F9),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18), // adjust the value for more/less curve
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ProfileMenuHeader(),
+              const Divider(height: 18, thickness: 1, color: Color(0x11000000)),
+              _customMenuItem(
+                context,
+                icon: Icons.person,
+                text: "Profile",
+                value: 0,
+                color: const Color(0xFF2766E2),
+                onTap: () => onMenuSelected?.call(0),
+              ),
+              _customMenuItem(
+                context,
+                icon: Icons.settings_input_component_rounded,
+                text: "Setup Race",
+                value: 1,
+                color: const Color(0xFF00C6FB),
+                onTap: () => onMenuSelected?.call(1),
+              ),
+              _customMenuItem(
+                context,
+                icon: Icons.directions_run,
+                text: "Previous Sessions",
+                value: 2,
+                color: const Color(0xFFFF9300),
+                onTap: () => onMenuSelected?.call(2),
+              ),
+              _customMenuItem(
+                context,
+                icon: Icons.settings,
+                text: "Settings",
+                value: 3,
+                color: const Color(0xFF1FD1F9),
+                onTap: () => onMenuSelected?.call(3),
+              ),
+              _customMenuItem(
+                context,
+                icon: Icons.help_outline,
+                text: "Support",
+                value: 4,
+                color: const Color(0xFF232526),
+                onTap: () => onMenuSelected?.call(4),
+              ),
+              const Divider(height: 18, thickness: 1, color: Color(0x11000000)),
+              _customMenuItem(
+                context,
+                icon: Icons.logout,
+                text: "Logout",
+                value: 5,
+                color: const Color(0xFFFF5F6D),
+                isDestructive: true,
+                onTap: () => onMenuSelected?.call(5),
+              ),
+            ],
           ),
-          items: [
-            PopupMenuItem(
-              enabled: false,
-              child: _ProfileMenuHeader(),
-            ),
-            const PopupMenuDivider(),
-            _modernMenuItem(
-              context,
-              icon: Icons.person,
-              text: "Profile",
-              value: 0,
-              color: const Color(0xFF2766E2),
-            ),
-            _modernMenuItem(
-              context,
-              icon: Icons.settings_input_component_rounded,
-              text: "Setup Race",
-              value: 1,
-              color: const Color(0xFF00C6FB),
-            ),
-            _modernMenuItem(
-              context,
-              icon: Icons.directions_run,
-              text: "Previous Sessions",
-              value: 2,
-              color: const Color(0xFFFF9300),
-            ),
-            _modernMenuItem(
-              context,
-              icon: Icons.settings,
-              text: "Settings",
-              value: 3,
-              color: const Color(0xFF1FD1F9),
-            ),
-            _modernMenuItem(
-              context,
-              icon: Icons.help_outline,
-              text: "Support",
-              value: 4,
-              color: const Color(0xFF232526),
-            ),
-            const PopupMenuDivider(),
-            _modernMenuItem(
-              context,
-              icon: Icons.logout,
-              text: "Logout",
-              value: 5,
-              color: const Color(0xFFFF5F6D),
-              isDestructive: true,
-            ),
-          ],
-        );
-        widget.onMenuOpen?.call(false);
-        if (!context.mounted) return;
-
-        switch (selected) {
-          case 0:
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
-            break;
-          case 1:
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const SetupRaceScreen()));
-            break;
-          case 2:
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const SprintSessionsScreen()));
-            break;
-          case 3:
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-            break;
-          case 4:
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpScreen()));
-            break;
-          case 5:
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const HomeScreen()),
-                  (route) => false,
-            );
-            break;
-          default:
-        }
-      },
-      child: CircleAvatar(
-        radius: 22,
-        backgroundColor: Colors.white.withOpacity(0.18),
-        child: const Icon(
-          Icons.account_circle,
-          color: Colors.white70,
-          size: 36,
         ),
       ),
     );
   }
 }
 
-// --- GLASSY HEADER FOR CONTEXT MENU ---
+Widget _customMenuItem(
+    BuildContext context, {
+      required IconData icon,
+      required String text,
+      required int value,
+      required Color color,
+      bool isDestructive = false,
+      required VoidCallback onTap,
+    }) {
+  return InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(14),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: color.withOpacity(0.13),
+            child: Icon(
+              icon,
+              color: color,
+              size: 19,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            text,
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontWeight: FontWeight.w500,
+              fontSize: 15,
+              color: isDestructive
+                  ? const Color(0xFFFF5F6D)
+                  : Colors.black.withOpacity(0.82),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _ProfileMenuHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -408,7 +520,7 @@ class _ProfileMenuHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Niki704", // TODO: Replace with actual user name if available
+                    "Niki704",
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontWeight: FontWeight.w600,
@@ -435,51 +547,16 @@ class _ProfileMenuHeader extends StatelessWidget {
   }
 }
 
-// --- MODERN MENU ITEM HELPER ---
-PopupMenuItem<int> _modernMenuItem(
-    BuildContext context, {
-      required IconData icon,
-      required String text,
-      required int value,
-      required Color color,
-      bool isDestructive = false,
-    }) {
-  return PopupMenuItem<int>(
-    value: value,
-    child: Row(
-      children: [
-        CircleAvatar(
-          radius: 14,
-          backgroundColor: color.withOpacity(0.13),
-          child: Icon(
-            icon,
-            color: color,
-            size: 19,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          text,
-          style: TextStyle(
-            fontFamily: 'Poppins',
-            fontWeight: FontWeight.w500,
-            fontSize: 15,
-            color: isDestructive ? const Color(0xFFFF5F6D) : Colors.black.withOpacity(0.82),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
 class _AnimatedGradientBackground extends StatefulWidget {
   const _AnimatedGradientBackground({super.key});
 
   @override
-  State<_AnimatedGradientBackground> createState() => _AnimatedGradientBackgroundState();
+  State<_AnimatedGradientBackground> createState() =>
+      _AnimatedGradientBackgroundState();
 }
 
-class _AnimatedGradientBackgroundState extends State<_AnimatedGradientBackground>
+class _AnimatedGradientBackgroundState
+    extends State<_AnimatedGradientBackground>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _animation;
@@ -499,7 +576,8 @@ class _AnimatedGradientBackgroundState extends State<_AnimatedGradientBackground
       vsync: this,
       duration: const Duration(seconds: 6),
     )..repeat(reverse: true);
-    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine);
+    _animation =
+        CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine);
   }
 
   @override
@@ -516,10 +594,8 @@ class _AnimatedGradientBackgroundState extends State<_AnimatedGradientBackground
         final t = _animation.value;
         final colors1 = gradientColors[colorSetIndex % gradientColors.length];
         final colors2 = gradientColors[(colorSetIndex + 1) % gradientColors.length];
-        final colors = List.generate(
-          3,
-              (i) => Color.lerp(colors1[i], colors2[i], t)!,
-        );
+        final colors =
+        List.generate(3, (i) => Color.lerp(colors1[i], colors2[i], t)!);
         if (_animation.status == AnimationStatus.completed) {
           colorSetIndex = (colorSetIndex + 1) % gradientColors.length;
         }
@@ -628,7 +704,6 @@ class _AnimatedFancyTileState extends State<_AnimatedFancyTile>
               gradient: widget.tile.gradient,
               borderRadius: BorderRadius.circular(26),
               boxShadow: [
-                // Highlight: Use withOpacity instead of withValues/withAlpha
                 BoxShadow(
                   color: widget.tile.color.withOpacity(_pressed ? 0.15 : 0.22),
                   blurRadius: _pressed ? 8 : 18,
@@ -669,7 +744,8 @@ class _AnimatedFancyTileState extends State<_AnimatedFancyTile>
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 18),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 30, vertical: 18),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
