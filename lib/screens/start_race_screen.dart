@@ -1,8 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'sprint_sessions_screen.dart';
-import 'dashboard_screen.dart'; // Import the dashboard screen
+import 'dashboard_screen.dart';
 
-/// A screen to start a pre-configured race.
+// --- ADDED: Firebase Database URL ---
+const String databaseUrl = 'https://sprint-tracker-sys-default-rtdb.asia-southeast1.firebasedatabase.app';
+
 class StartRaceScreen extends StatefulWidget {
   const StartRaceScreen({super.key});
 
@@ -11,91 +16,128 @@ class StartRaceScreen extends StatefulWidget {
 }
 
 class _StartRaceScreenState extends State<StartRaceScreen> {
-  // Hardcoded values for demonstration purposes.
-  final int lapCount = 5;
-  final int lapDistance = 400;
+  // --- MODIFIED: State variables to hold data from Firebase ---
+  late final DatabaseReference _sessionRef;
+  StreamSubscription<DatabaseEvent>? _sessionSubscription;
 
-  // State variable to track if the status has been checked.
-  bool _isStatusChecked = false;
+  int _lapCount = 0;
+  int _lapDistance = 0;
+  String _status = 'NOT_CONFIGURED';
+  bool _isLoading = false;
 
-  /// Handles the logic for checking the race status.
-  void _checkStatus() {
-    setState(() {
-      _isStatusChecked = true;
+  @override
+  void initState() {
+    super.initState();
+    // --- ADDED: Initialize and listen to Firebase ---
+    _sessionRef = FirebaseDatabase.instanceFor(
+      app: Firebase.app(),
+      databaseURL: databaseUrl,
+    ).ref('current_sprint_session');
+
+    _sessionSubscription = _sessionRef.onValue.listen((DatabaseEvent event) {
+      if (event.snapshot.exists && event.snapshot.value != null) {
+        final data = Map<String, dynamic>.from(event.snapshot.value as Map);
+        setState(() {
+          _lapCount = data['lapCount'] ?? 0;
+          _lapDistance = data['distancePerLap'] ?? 0;
+          _status = data['status'] ?? 'NOT_CONFIGURED';
+        });
+      } else {
+        setState(() {
+          _lapCount = 0;
+          _lapDistance = 0;
+          _status = 'NOT_CONFIGURED';
+        });
+      }
     });
-    // TODO: Implement actual status check logic
-    print('The application has moved to the ready state!');
-    // Optionally, show a confirmation to the user.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Status checked! You can now start the race.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
   }
 
-  /// Shows the dialog when the race starts.
-  void _showStartRaceDialog() {
+  @override
+  void dispose() {
+    _sessionSubscription?.cancel();
+    super.dispose();
+  }
+
+  // --- MODIFIED: Renamed and updated to change status in Firebase ---
+  Future<void> _confirmDevicePlacement() async {
+    setState(() => _isLoading = true);
+    try {
+      await _sessionRef.update({'status': 'DEVICE_READY'});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Device placement confirmed! Ready to start.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update status: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // --- MODIFIED: Replaced with a new function to start the race ---
+  Future<void> _startRace() async {
+    setState(() => _isLoading = true);
+    try {
+      await _sessionRef.update({'status': 'RACE_IN_PROGRESS'});
+      if (mounted) {
+        _showRaceStartedDialog();
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to start race: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // --- MODIFIED: Dialog box is updated to the new style ---
+  void _showRaceStartedDialog() {
     showDialog(
       context: context,
-      // Prevents closing the dialog by tapping outside of it
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          // Apply Montserrat font to the title
-          title: const Text(
-            "Race has started !",
-            style: TextStyle(fontFamily: 'Montserrat', fontWeight: FontWeight.bold),
-          ),
-          // Apply NunitoSans font to the content
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Press 'Sprint Sessions' to track your progress.",
-                style: TextStyle(fontFamily: 'NunitoSans'),
-              ),
-              SizedBox(height: 8),
-              Text(
-                "Press 'Exit' to go to the main menu.",
-                style: TextStyle(fontFamily: 'NunitoSans'),
-              ),
-            ],
-          ),
-          // Align actions to distribute space between them
-          actionsAlignment: MainAxisAlignment.spaceBetween,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
+          title: const Text("Race Started!", style: TextStyle(fontWeight: FontWeight.bold)),
+          content: const Text("Track your progress in Sprint Sessions or exit to the dashboard."),
           actions: <Widget>[
-            // "Check Progress" button with deepPurple color
             TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.deepPurple,
-              ),
-              child: const Text('Sprint Sessions'),
+              style: TextButton.styleFrom(foregroundColor: const Color(0xFF2e2e2e)),
+              child: const Text('Exit to Dashboard'),
               onPressed: () {
-                // TODO: Implement navigation to a progress tracking screen
-                Navigator.of(dialogContext).pop();  // Close the dialog
+                Navigator.of(dialogContext).pop();
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(
-                      builder: (context) => const SprintSessionsScreen()),
+                  MaterialPageRoute(builder: (context) => const DashboardScreen()),
                 );
               },
             ),
-            // "Exit" button with custom dark color
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF2e2e2e),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
               ),
-              child: const Text('Exit'),
+              child: const Text('Sprint Sessions'),
               onPressed: () {
-                // First, pop the dialog.
                 Navigator.of(dialogContext).pop();
-                // Then, navigate to the Dashboard screen, replacing the current screen.
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(
-                      builder: (context) => const DashboardScreen()),
+                  MaterialPageRoute(builder: (context) => const SprintSessionsScreen()),
                 );
               },
             ),
@@ -105,140 +147,109 @@ class _StartRaceScreenState extends State<StartRaceScreen> {
     );
   }
 
-  /// Handles the logic for starting the race.
-  void _startRace() {
-    // TODO: Implement actual race start logic
-    _showStartRaceDialog();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Race started!'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    // --- ADDED: Logic to control button states ---
+    final bool isConfigured = _lapCount > 0 && _lapDistance > 0;
+    final bool canConfirmPlacement = isConfigured && _status == 'SETUP_COMPLETE';
+    final bool canStartRace = isConfigured && _status == 'DEVICE_READY';
+
     return Scaffold(
-      // AppBar with the consistent theme
       appBar: AppBar(
-        title: const Text(
-          'Start Race',
-          style: TextStyle(fontFamily: 'Montserrat', fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Start Race', style: TextStyle(fontFamily: 'Montserrat', fontWeight: FontWeight.bold)),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 2,
       ),
-      // Background color consistent with the theme
       backgroundColor: const Color(0xFFF4F5FA),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            // Display container for race details
-            Container(
-              padding: const EdgeInsets.all(24.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    spreadRadius: 1,
-                    blurRadius: 5,
-                    offset: const Offset(0, 3),
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.all(24.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(15.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.1),
+                        spreadRadius: 1,
+                        blurRadius: 5,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  _buildDetailRow('Lap Count:', '$lapCount Laps'),
-                  const SizedBox(height: 16),
-                  // Display lapDistance with "m" for meters
-                  _buildDetailRow('Lap Distance:', '$lapDistance m'),
-                ],
-              ),
+                  child: Column(
+                    children: [
+                      // --- MODIFIED: Use state variables ---
+                      _buildDetailRow('Lap Count:', '$_lapCount Laps'),
+                      const SizedBox(height: 16),
+                      _buildDetailRow('Lap Distance:', '$_lapDistance m'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 40.0),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.flag, size: 18),
+                  label: const Text("Start Race"),
+                  style: ElevatedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.deepPurple,
+                    disabledBackgroundColor: Colors.deepPurple.withOpacity(0.5),
+                    disabledForegroundColor: Colors.white.withOpacity(0.7),
+                    textStyle: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 13),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    elevation: 2,
+                  ),
+                  // --- MODIFIED: Use new state logic ---
+                  onPressed: canStartRace && !_isLoading ? _startRace : null,
+                ),
+                const SizedBox(height: 12.0),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2e2e2e),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(0xFF2e2e2e).withOpacity(0.5),
+                    disabledForegroundColor: Colors.white.withOpacity(0.7),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  ),
+                  // --- MODIFIED: Use new state logic ---
+                  onPressed: canConfirmPlacement && !_isLoading ? _confirmDevicePlacement : null,
+                  child: const Text("Confirm Device Placement", style: TextStyle(fontSize: 13, fontFamily: 'Poppins', fontWeight: FontWeight.bold)),
+                ),
+              ],
             ),
-            const SizedBox(height: 40.0), // Spacer
-
-            // "Start Race" button is disabled until status is checked
-            ElevatedButton.icon(
-              icon: const Icon(Icons.flag, size: 18),
-              label: const Text("Start Race"),
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.white,
-                backgroundColor: Colors.deepPurple,
-                disabledBackgroundColor: Colors.deepPurple.withOpacity(0.5),
-                disabledForegroundColor: Colors.white.withOpacity(0.7),
-                textStyle: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-                padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                elevation: 2,
-              ),
-              onPressed: _isStatusChecked ? _startRace : null,
+          ),
+          // --- ADDED: Loading indicator ---
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(child: CircularProgressIndicator()),
             ),
-            const SizedBox(height: 12.0), // Spacer between buttons
-
-            // "Checked Distance Status" button
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2e2e2e),
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: const Color(0xFF2e2e2e).withOpacity(0.5),
-                disabledForegroundColor: Colors.white.withOpacity(0.7),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-              ),
-              // Button is disabled once status is checked
-              onPressed: _isStatusChecked ? null : _checkStatus,
-              child: const Text(
-                "Checked Distance Status",
-                style: TextStyle(
-                  fontSize: 13,
-                  fontFamily: 'Poppins',
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
-  /// A helper widget to create a consistent row for displaying details.
   Widget _buildDetailRow(String label, String value) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 16,
-            color: Colors.deepPurple,
-            fontFamily: 'NunitoSans',
-          ),
+          style: const TextStyle(fontSize: 16, color: Colors.deepPurple, fontFamily: 'NunitoSans'),
         ),
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'Montserrat',
-          ),
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, fontFamily: 'Montserrat'),
         ),
       ],
     );

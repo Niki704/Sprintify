@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dashboard_screen.dart';
+import 'auth_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -68,6 +69,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _btnController.dispose();
     _titleController.dispose();
     super.dispose();
+  }
+
+  // --- Function to navigate to AuthScreen ---
+  void _navigateToAuth(BuildContext context, {required bool isLogin}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AuthScreen(isLogin: isLogin),
+      ),
+    );
   }
 
   @override
@@ -173,14 +184,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 ),
                                 onPressed: _showLoading
                                     ? null
-                                    : () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (context) =>
-                                        const DashboardScreen()),
-                                  );
-                                },
+                                    : () => _navigateToAuth(context, isLogin: true),
                                 child: const Text(
                                   "Login",
                                   style: TextStyle(
@@ -207,14 +211,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 ),
                                 onPressed: _showLoading
                                     ? null
-                                    : () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (context) =>
-                                        const DashboardScreen()),
-                                  );
-                                },
+                                    : () => _navigateToAuth(context, isLogin: false),
                                 child: const Text(
                                   "Sign Up",
                                   style: TextStyle(

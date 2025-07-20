@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'start_race_screen.dart';
 import 'dashboard_screen.dart';
+
+const String databaseUrl = 'https://sprint-tracker-sys-default-rtdb.asia-southeast1.firebasedatabase.app';
 
 /// A screen for setting up a race with lap count and distance.
 class SetupRaceScreen extends StatefulWidget {
@@ -10,214 +16,257 @@ class SetupRaceScreen extends StatefulWidget {
 }
 
 class _SetupRaceScreenState extends State<SetupRaceScreen> {
-  // Controller to manage the text in the distance TextField.
-  final _distanceController = TextEditingController();
-  // Variable to hold the selected lap count from the dropdown.
   int? _selectedLapCount;
+  int? _selectedDistance; // Changed from TextEditingController
+  bool _isLoading = false;
+
+  late final DatabaseReference _sessionRef;
 
   @override
   void initState() {
     super.initState();
-    // Add a listener to the text controller to rebuild the widget on text changes.
-    _distanceController.addListener(() {
-      setState(() {});
-    });
+    _sessionRef = FirebaseDatabase.instanceFor(
+      app: Firebase.app(),
+      databaseURL: databaseUrl,
+    ).ref('current_sprint_session');
   }
 
   @override
   void dispose() {
-    // It's important to dispose of the controller when the widget is removed
-    // from the widget tree to free up resources.
-    _distanceController.dispose();
     super.dispose();
   }
 
-  void _onConfirm() {
-    // Retrieve the values.
-    final String lapCount = _selectedLapCount.toString();
-    final String distance = _distanceController.text;
-
-    // Here, you would typically handle the logic for the race setup.
-    // For example, you might validate the input, save it, and navigate
-    // to the next screen.
-    //
-    // For this example, we'll just print it to the console and show a dialog.
-    print('Race setup confirmed:');
-    print('Lap Count: $lapCount');
-    print('Distance: $distance');
-
-    // Show a confirmation dialog to the user.
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Race Confirmed'),
-          content: Text('Laps: $lapCount\nDistance: $distance'),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('OK'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(); // Pop up dialog box
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const DashboardScreen()),
-                );
-              },
-            ),
-          ],
+  /// Saves the race configuration and shows a modern dialog.
+  Future<void> _onConfirm() async {
+    if (FirebaseAuth.instance.currentUser == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You must be logged in to set up a race.')),
         );
-      },
-    );
+      }
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final sessionData = {
+        'lapCount': _selectedLapCount,
+        'distancePerLap': _selectedDistance, // Use the selected distance
+        'status': 'SETUP_COMPLETE',
+      };
+      await _sessionRef.set(sessionData);
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext dialogContext) {
+            // --- MODIFIED DIALOG ---
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
+              title: const Text(
+                'Setup Complete!',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              content: const Text('Would you like to jump to the starting line?'),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text(
+                    'Dashboard',
+                    style: TextStyle(color: Color(0xFF2e2e2e)), // Set text color
+                  ),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => const DashboardScreen()),
+                          (Route<dynamic> route) => false,
+                    );
+                  },
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple, // Set background color
+                    foregroundColor: Colors.white, // Set foreground color
+                  ),
+                  child: const Text('Start Race'),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const StartRaceScreen()),
+                    );
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send race setup: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
-  /// Resets the input fields to their initial state.
-  void _resetValues() {
-    setState(() {
-      _selectedLapCount = null;
-      _distanceController.clear();
-    });
+  /// Resets local values and clears the session data in the Realtime Database.
+  Future<void> _resetValues() async {
+    setState(() => _isLoading = true);
+    try {
+      // Clear the data in Firebase
+      await _sessionRef.remove();
+      // Reset local state
+      setState(() {
+        _selectedLapCount = null;
+        _selectedDistance = null;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Session has been reset.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to reset session: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Determine if the button should be enabled.
+    // Updated condition to check both dropdowns
     final bool isConfirmButtonEnabled =
-        _selectedLapCount != null && _distanceController.text.isNotEmpty;
+        _selectedLapCount != null && _selectedDistance != null;
 
     return Scaffold(
-      // Set the AppBar to match the SprintSessionsScreen theme
       appBar: AppBar(
-        title: const Text(
-          'Setup Race',
-          style: TextStyle(fontFamily: 'Montserrat', fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Setup Race', style: TextStyle(fontFamily: 'Montserrat', fontWeight: FontWeight.bold)),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 2,
       ),
-      // Set the background color to the solid light gray
       backgroundColor: const Color(0xFFF4F5FA),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          // Center the content vertically
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            const Padding(
-              padding: EdgeInsets.only(left: 12.0, bottom: 8.0),
-              child: Text(
-                'Lap Count',
-                style: TextStyle(
-                  color: Colors.black87, // Default label color
-                  fontSize: 16,
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                const Padding(
+                  padding: EdgeInsets.only(left: 12.0, bottom: 8.0),
+                  child: Text('Lap Count', style: TextStyle(color: Colors.black87, fontSize: 16)),
                 ),
+                DropdownButtonFormField<int>(
+                  hint: const Text('Select number of laps'),
+                  value: _selectedLapCount,
+                  items: List.generate(10, (index) => index + 1)
+                      .map((lap) => DropdownMenuItem(value: lap, child: Text('$lap Laps')))
+                      .toList(),
+                  onChanged: (int? newValue) => setState(() => _selectedLapCount = newValue),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15.0), borderSide: BorderSide.none),
+                  ),
+                ),
+                const SizedBox(height: 16.0),
+                const Padding(
+                  padding: EdgeInsets.only(left: 12.0, bottom: 8.0),
+                  child: Text('Distance Per Lap', style: TextStyle(color: Colors.black87, fontSize: 16)),
+                ),
+                // --- DISTANCE DROPDOWN ---
+                DropdownButtonFormField<int>(
+                  hint: const Text('Select distance in meters'),
+                  value: _selectedDistance,
+                  items: [100, 200, 400, 800, 1000]
+                      .map((distance) => DropdownMenuItem(value: distance, child: Text('$distance m')))
+                      .toList(),
+                  onChanged: (int? newValue) => setState(() => _selectedDistance = newValue),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15.0), borderSide: BorderSide.none),
+                  ),
+                ),
+                const SizedBox(height: 32.0),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text("Confirm"),
+                  style: ElevatedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.deepPurple,
+                    disabledBackgroundColor: Colors.deepPurple.withOpacity(0.5),
+                    disabledForegroundColor: Colors.white.withOpacity(0.7),
+                    textStyle: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 13),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    elevation: 2,
+                  ),
+                  onPressed: isConfirmButtonEnabled && !_isLoading ? _onConfirm : null,
+                ),
+                const SizedBox(height: 12.0),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2e2e2e),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  ),
+                  onPressed: _isLoading ? _resetValues : _resetValues,
+                  child: const Text("Reset", style: TextStyle(fontSize: 13, fontFamily: 'Poppins', fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 16.0),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start, // This line is the fix
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.grey.shade600, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Confirming new values will overwrite the previous setup. You can check the active settings on the Start Race.",
+                          style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(
+                child: CircularProgressIndicator(),
               ),
             ),
-            // Dropdown for Lap Count
-            DropdownButtonFormField<int>(
-              // Use a hint widget to show the placeholder text.
-              hint: const Text('Select number of laps'),
-              value: _selectedLapCount,
-              menuMaxHeight: 250.0,
-              items: List.generate(10, (index) => index + 1)
-                  .map((lap) => DropdownMenuItem(
-                value: lap,
-                child: Text('$lap'),
-              ))
-                  .toList(),
-              onChanged: (int? newValue) {
-                setState(() {
-                  _selectedLapCount = newValue;
-                });
-              },
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15.0),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16.0), // Spacer
-
-            // Text field for Distance
-            TextField(
-              controller: _distanceController,
-              // Use default text style for dark theme
-              decoration: InputDecoration(
-                labelText: 'Distance',
-                hintText: 'Enter the distance per lap (e.g., in meters)',
-                // Use solid white fill for contrast
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15.0),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-              // Use a number keyboard that allows decimals.
-              keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
-            ),
-            const SizedBox(height: 32.0), // Spacer
-
-            // Confirm Button
-            ElevatedButton.icon(
-              icon: const Icon(Icons.check, size: 18),
-              label: const Text("Confirm"),
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.white,
-                backgroundColor: Colors.deepPurple,
-                // Use a disabled color to give a visual cue to the user.
-                disabledBackgroundColor: Colors.deepPurple.withOpacity(0.5),
-                disabledForegroundColor: Colors.white.withOpacity(0.7),
-                textStyle: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-                padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                elevation: 2,
-              ),
-              // Disable button if either field is empty.
-              onPressed: isConfirmButtonEnabled ? _onConfirm : null,
-            ),
-            const SizedBox(height: 12.0), // Spacer between buttons
-
-            // Reset Button
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2e2e2e),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-              ),
-              onPressed: _resetValues,
-              child: const Text(
-                "Reset",
-                style: TextStyle(
-                  fontSize: 13,
-                  fontFamily: 'Poppins',
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }

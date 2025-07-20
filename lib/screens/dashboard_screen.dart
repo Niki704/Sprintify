@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile_screen.dart';
 import 'setup_race_screen.dart';
 import 'start_race_screen.dart';
@@ -8,7 +10,6 @@ import 'statistics_screen.dart';
 import 'achievements_screen.dart';
 import 'settings_screen.dart';
 import 'help_screen.dart';
-import 'home_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -124,6 +125,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _menuOpen = false;
     });
   }
+
+  void _showLogoutConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Logout'),
+        content: const Text('Are you sure you want to log out?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop(); // Close the dialog
+            },
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.of(ctx).pop(); // Close the dialog
+              FirebaseAuth.instance.signOut(); // Sign out the user
+              // The StreamBuilder in main.dart will automatically handle the navigation
+            },
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -342,12 +375,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           );
                           break;
                         case 5:
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const HomeScreen()),
-                                (route) => false,
-                          );
+                        // --- UPDATED LOGOUT LOGIC ---
+                          _showLogoutConfirmationDialog();
                           break;
                       }
                     },
@@ -494,7 +523,55 @@ Widget _customMenuItem(
   );
 }
 
-class _ProfileMenuHeader extends StatelessWidget {
+class _ProfileMenuHeader extends StatefulWidget {
+  @override
+  State<_ProfileMenuHeader> createState() => _ProfileMenuHeaderState();
+}
+
+class _ProfileMenuHeaderState extends State<_ProfileMenuHeader> {
+  String? _userName;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    // This artificial delay ensures the "Loading..." text is visible briefly.
+    await Future.delayed(const Duration(milliseconds: 200));
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _userName = 'User');
+      return;
+    }
+
+    String finalName;
+    try {
+      final docSnap = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (docSnap.exists) {
+        final data = docSnap.data()!;
+        final firestoreName = data['name'] as String?;
+        if (firestoreName != null && firestoreName.isNotEmpty) {
+          finalName = firestoreName;
+        } else {
+          finalName = user.displayName ?? user.email ?? 'User';
+        }
+      } else {
+        finalName = user.displayName ?? user.email ?? 'User';
+      }
+    } catch (e) {
+      finalName = user.displayName ?? user.email ?? 'User';
+    }
+
+    if (mounted) {
+      setState(() {
+        _userName = finalName;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
@@ -504,40 +581,26 @@ class _ProfileMenuHeader extends StatelessWidget {
         child: Container(
           width: 200,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.09),
-            borderRadius: BorderRadius.circular(18),
-          ),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.09), borderRadius: BorderRadius.circular(18)),
           child: Row(
             children: [
-              CircleAvatar(
-                backgroundColor: Colors.white.withOpacity(0.5),
-                radius: 18,
-                child: const Icon(Icons.person, size: 22, color: Color(0xFF2766E2)),
-              ),
+              CircleAvatar(backgroundColor: Colors.white.withOpacity(0.5), radius: 18, child: const Icon(Icons.person, size: 22, color: Color(0xFF2766E2))),
               const SizedBox(width: 12),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Niki704",
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                      color: Colors.black87,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _userName ?? 'Loading...', // Display the fetched name
+                      style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, fontSize: 15, color: Colors.black87),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  Text(
-                    "View your profile",
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontWeight: FontWeight.w400,
-                      fontSize: 11.5,
-                      color: Colors.black45,
+                    const Text(
+                      "View your profile",
+                      style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w400, fontSize: 11.5, color: Colors.black45),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
