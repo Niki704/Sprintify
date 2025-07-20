@@ -1,18 +1,66 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:math'; // Imported for generating random data
 
-class StatisticsScreen extends StatelessWidget {
+class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
 
   @override
+  State<StatisticsScreen> createState() => _StatisticsScreenState();
+}
+
+class _StatisticsScreenState extends State<StatisticsScreen> {
+  // --- DYNAMIC LAP CONTROL ---
+  // You can change this value to control the number of laps.
+  // Set to 10 to demonstrate the conditional label change.
+  final int totalLaps = 7;
+
+  // This list will be populated with generated statistics.
+  late List<Map<String, dynamic>> _laps;
+  double _maxSpeed = 0; // To dynamically set the chart's max Y value.
+
+  @override
+  void initState() {
+    super.initState();
+    _generateLapStatistics();
+  }
+
+  /// Generates sample lap statistics based on the `totalLaps` variable.
+  void _generateLapStatistics() {
+    final random = Random();
+    final generatedLaps = <Map<String, dynamic>>[];
+    double currentMaxSpeed = 0;
+
+    for (int i = 0; i < totalLaps; i++) {
+      final time = random.nextInt(15) + 18; // Random time between 18 and 32
+      final speed = random.nextDouble() * 15 + 20; // Random speed between 20.0 and 35.0
+
+      if (speed > currentMaxSpeed) {
+        currentMaxSpeed = speed;
+      }
+
+      generatedLaps.add({
+        'time': time,
+        'speed': speed,
+      });
+    }
+
+    setState(() {
+      _laps = generatedLaps;
+      // Set max speed for the chart, rounding up to the nearest 10 for a clean look.
+      _maxSpeed = (currentMaxSpeed / 10).ceil() * 10.0;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Example lap data
-    final laps = [
-      {'time': 20, 'speed': 32.4},
-      {'time': 21, 'speed': 30.1},
-      {'time': 19, 'speed': 29.8},
-      {'time': 45, 'speed': 23.0},
-    ];
+    // Show a loading indicator until the data is generated.
+    if (_laps == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Sprint Statistics')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -58,13 +106,16 @@ class StatisticsScreen extends StatelessWidget {
                       color: Colors.deepPurple,
                     ),
                   ),
+                  const SizedBox(height: 16),
+
                   SizedBox(
                     height: 240,
                     width: double.infinity,
                     child: BarChart(
                       BarChartData(
                         alignment: BarChartAlignment.spaceAround,
-                        maxY: 40,
+                        // --- DYNAMIC Y-AXIS ---
+                        maxY: _maxSpeed,
                         minY: 0,
                         titlesData: FlTitlesData(
                           leftTitles: AxisTitles(
@@ -72,7 +123,7 @@ class StatisticsScreen extends StatelessWidget {
                               showTitles: true,
                               reservedSize: 36,
                               getTitlesWidget: (value, meta) => Text(
-                                value % 10 == 0 ? value.toInt().toString() : '',
+                                value.toInt() % 10 == 0 ? value.toInt().toString() : '',
                                 style: const TextStyle(
                                   fontFamily: 'NunitoSans',
                                   color: Colors.grey,
@@ -86,39 +137,48 @@ class StatisticsScreen extends StatelessWidget {
                           bottomTitles: AxisTitles(
                             sideTitles: SideTitles(
                               showTitles: true,
-                              getTitlesWidget: (value, meta) => Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  "Lap ${value.toInt() + 1}",
-                                  style: const TextStyle(
-                                    fontFamily: 'NunitoSans',
-                                    color: Colors.deepPurple,
-                                    fontSize: 13,
+                              getTitlesWidget: (value, meta) {
+                                // --- CONDITIONAL LABEL LOGIC ---
+                                // If lap count is high, only show the number to prevent overlap.
+                                final String text = totalLaps > 7
+                                    ? (value.toInt() + 1).toString()
+                                    : "Lap ${value.toInt() + 1}";
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(left: 0, top: 4, right: 0, bottom: 0),
+                                  child: Text(
+                                    text,
+                                    style: const TextStyle(
+                                      fontFamily: 'NunitoSans',
+                                      color: Colors.deepPurple,
+                                      fontSize: 12,
+                                    ),
                                   ),
-                                ),
-                              ),
+                                );
+                              },
                               interval: 1,
                             ),
                           ),
                         ),
+                        // --- DYNAMIC BAR GENERATION ---
                         barGroups: List.generate(
-                          laps.length,
+                          _laps.length,
                               (i) => BarChartGroupData(
                             x: i,
                             barRods: [
                               BarChartRodData(
-                                toY: laps[i]['speed'] as double,
+                                toY: _laps[i]['speed'] as double,
                                 color: Colors.deepPurpleAccent,
                                 width: 28,
                                 borderRadius: BorderRadius.circular(8),
                                 backDrawRodData: BackgroundBarChartRodData(
                                   show: true,
-                                  toY: 40,
+                                  toY: _maxSpeed,
                                   color: Colors.deepPurple.withOpacity(0.08),
                                 ),
                               ),
                             ],
-                            showingTooltipIndicators: [0],
+                            // The 'showingTooltipIndicators' property has been removed.
                           ),
                         ),
                         barTouchData: BarTouchData(
@@ -136,7 +196,7 @@ class StatisticsScreen extends StatelessWidget {
                                 ),
                                 children: <TextSpan>[
                                   TextSpan(
-                                    text: 'Speed: ${rod.toY} m/s',
+                                    text: 'Speed: ${rod.toY.toStringAsFixed(1)} m/s',
                                     style: const TextStyle(
                                       color: Colors.white70,
                                       fontFamily: 'NunitoSans',
@@ -166,16 +226,16 @@ class StatisticsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            // Laps List
+            // --- DYNAMIC LAPS LIST ---
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: laps.length,
+                itemCount: _laps.length,
                 itemBuilder: (context, i) {
                   return _LapStatCard(
                     lapNumber: i + 1,
-                    time: laps[i]['time'] as int,
-                    speed: laps[i]['speed'] as double,
+                    time: _laps[i]['time'] as int,
+                    speed: _laps[i]['speed'] as double,
                   );
                 },
               ),
