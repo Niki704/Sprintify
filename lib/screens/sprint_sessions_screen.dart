@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
 
 const String databaseUrl = 'https://sprint-tracker-sys-default-rtdb.asia-southeast1.firebasedatabase.app';
@@ -14,6 +16,8 @@ class SprintSessionsScreen extends StatefulWidget {
 }
 
 class _SprintSessionsScreenState extends State<SprintSessionsScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   late final DatabaseReference _sessionRef;
   StreamSubscription<DatabaseEvent>? _sessionSubscription;
 
@@ -26,7 +30,9 @@ class _SprintSessionsScreenState extends State<SprintSessionsScreen> {
   bool _isLapInProgress = false;
   int _expectedSensor = 1;
 
-  bool reverseDirection = false;
+  bool reverseDirection = true;
+  bool _raceJustFinished = false;
+  bool _isDialogBusy = false;
 
   @override
   void initState() {
@@ -35,6 +41,8 @@ class _SprintSessionsScreenState extends State<SprintSessionsScreen> {
       app: Firebase.app(),
       databaseURL: databaseUrl,
     ).ref('current_sprint_session');
+
+    _handleRefresh();
 
     _sessionSubscription = _sessionRef.onValue.listen((DatabaseEvent event) {
       _processFirebaseData(event.snapshot);
@@ -54,30 +62,45 @@ class _SprintSessionsScreenState extends State<SprintSessionsScreen> {
   }
 
   void _processFirebaseData(DataSnapshot snapshot) {
-    if (!mounted) return;
+    if (_isDialogBusy || !mounted) return;
+
     if (!snapshot.exists || snapshot.value == null) {
       setState(() {
         _totalLaps = 0;
         _laps = [];
         _activeLap = 0;
         _status = 'NOT_CONFIGURED';
+        reverseDirection = true;
       });
       return;
     }
 
     final sessionData = Map<String, dynamic>.from(snapshot.value as Map);
+    final raceWasInProgress = _status == 'RACE_IN_PROGRESS';
+
     _totalLaps = sessionData['lapCount'] ?? 0;
     _distancePerLap = sessionData['distancePerLap'] ?? 0;
     _status = sessionData['status'] ?? 'NOT_CONFIGURED';
-    final lapsData = sessionData['laps'] as Map<dynamic, dynamic>? ?? {};
+
+    final lapsRawData = sessionData['laps'];
+
+    if (_distancePerLap == 1000) {
+      reverseDirection = false;
+    }
 
     final newLapsList = <Map<String, dynamic>>[];
     int newActiveLap = 0;
     bool lapInProgressFound = false;
 
     for (int i = 1; i <= _totalLaps; i++) {
-      final lapKey = i.toString();
-      final lap = lapsData[lapKey] as Map<dynamic, dynamic>?;
+      Map<dynamic, dynamic>? lap;
+      if (lapsRawData is List) {
+        if (i < lapsRawData.length && lapsRawData[i] is Map) {
+          lap = lapsRawData[i] as Map<dynamic, dynamic>;
+        }
+      } else if (lapsRawData is Map) {
+        lap = lapsRawData[i.toString()] as Map<dynamic, dynamic>?;
+      }
 
       if (lap != null && lap['startTime'] != null && lap['endTime'] != null) {
         final timeTakenMs = lap['endTime'] - lap['startTime'];
@@ -86,16 +109,24 @@ class _SprintSessionsScreenState extends State<SprintSessionsScreen> {
         newLapsList.add({'completed': true, 'time': '$timeTakenSec sec', 'speed': '$speed m/s', 'distance': '$_distancePerLap m'});
       } else if (lap != null && lap['startTime'] != null) {
         lapInProgressFound = true;
-        if (newActiveLap == 0) newActiveLap = i;
+        newActiveLap = i;
         newLapsList.add({'completed': false});
       } else {
-        if (newActiveLap == 0) newActiveLap = i;
+        if (newActiveLap == 0) {
+          newActiveLap = i;
+        }
         newLapsList.add({'completed': false});
       }
     }
 
-    if (newActiveLap > 0 && newLapsList.length == _totalLaps && newLapsList.every((l) => l['completed'] == true)) {
+    final allLapsCompleted = newLapsList.isNotEmpty && newLapsList.every((l) => l['completed'] == true);
+
+    if (allLapsCompleted) {
       newActiveLap = 0;
+      if (raceWasInProgress) {
+        _raceJustFinished = true;
+        _sessionRef.child('status').set('RACE_COMPLETE');
+      }
     }
 
     setState(() {
@@ -104,6 +135,111 @@ class _SprintSessionsScreenState extends State<SprintSessionsScreen> {
       _isLapInProgress = lapInProgressFound;
       _updateExpectedSensor();
     });
+
+    if (_raceJustFinished) {
+      _raceJustFinished = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showRaceFinishedDialog(sessionData);
+      });
+    }
+  }
+
+  Future<void> _showRaceFinishedDialog(Map<String, dynamic> sessionData) async {
+    _isDialogBusy = true;
+
+    // The dialog now doesn't need to return a value, as the action is handled inside.
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
+          title: const Text('Race Finished!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          content: const Text('Would you like to save this session to your profile?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Don\'t Save', style: TextStyle(color: Color(0xFF2e2e2e))),
+              onPressed: () => Navigator.pop(dialogContext),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Save to Profile'),
+              // --- FIX: Make onPressed async and save BEFORE popping ---
+              onPressed: () async {
+                // Perform the save operation first.
+                await _saveSessionToFirestore(sessionData);
+                // Then, close the dialog.
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    // This code now runs after the dialog is closed, regardless of the choice.
+    await _clearRealtimeDatabaseSession();
+    _isDialogBusy = false;
+    _handleRefresh();
+  }
+
+  Future<void> _saveSessionToFirestore(Map<String, dynamic> sessionData) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You must be logged in to save a session.')));
+      }
+      return;
+    }
+
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final userSessionsRef = firestore.collection('users').doc(user.uid).collection('sessions');
+
+      final sessionsSnapshot = await userSessionsRef.get();
+      final nextSessionNumber = sessionsSnapshot.docs.length + 1;
+
+      final dataToSave = {
+        'lapCount': sessionData['lapCount'],
+        'distancePerLap': sessionData['distancePerLap'],
+        'laps': sessionData['laps'],
+        'savedAt': FieldValue.serverTimestamp(),
+      };
+
+      await userSessionsRef.doc('session_$nextSessionNumber').set(dataToSave);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Session saved successfully!'),
+          backgroundColor: Colors.green,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error saving session: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    }
+  }
+
+  Future<void> _clearRealtimeDatabaseSession() async {
+    try {
+      await _sessionRef.remove();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error clearing session: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    }
   }
 
   void _updateExpectedSensor() {
@@ -140,12 +276,9 @@ class _SprintSessionsScreenState extends State<SprintSessionsScreen> {
     }
   }
 
-  // --- ADDED: Function to handle the pull-to-refresh action ---
   Future<void> _handleRefresh() async {
     try {
-      // Manually fetch the data once from Firebase
       final event = await _sessionRef.once();
-      // Process the data just like the stream does
       _processFirebaseData(event.snapshot);
     } catch (error) {
       if (mounted) {
@@ -161,6 +294,7 @@ class _SprintSessionsScreenState extends State<SprintSessionsScreen> {
     final bool showSimulator = _status == 'RACE_IN_PROGRESS' && _activeLap > 0 && _activeLap <= _totalLaps;
 
     return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
         title: const Text('Sprint Sessions', style: TextStyle(fontFamily: 'Montserrat', fontWeight: FontWeight.bold)),
         backgroundColor: Colors.deepPurple,
@@ -168,12 +302,19 @@ class _SprintSessionsScreenState extends State<SprintSessionsScreen> {
         elevation: 2,
         actions: [
           if (showSimulator)
-            Builder(
-              builder: (context) => IconButton(
-                icon: const Icon(Icons.touch_app_outlined),
-                tooltip: 'Open Simulator Controls',
-                onPressed: () => Scaffold.of(context).openEndDrawer(),
-              ),
+            IconButton(
+              icon: const Icon(Icons.touch_app_outlined),
+              tooltip: 'Simulator Controls',
+              onPressed: () {
+                final scaffoldState = _scaffoldKey.currentState;
+                if (scaffoldState != null) {
+                  if (scaffoldState.isEndDrawerOpen) {
+                    scaffoldState.closeEndDrawer();
+                  } else {
+                    scaffoldState.openEndDrawer();
+                  }
+                }
+              },
             ),
         ],
       ),
@@ -203,7 +344,7 @@ class _SprintSessionsScreenState extends State<SprintSessionsScreen> {
                   Switch(
                     value: reverseDirection,
                     activeColor: Colors.deepPurple,
-                    onChanged: (_totalLaps == 0) ? null : (val) {
+                    onChanged: (_distancePerLap == 1000) ? null : (val) {
                       setState(() {
                         reverseDirection = val;
                         _updateExpectedSensor();
@@ -215,14 +356,13 @@ class _SprintSessionsScreenState extends State<SprintSessionsScreen> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              // --- MODIFIED: Wrapped the list view with a RefreshIndicator ---
               child: RefreshIndicator(
                 onRefresh: _handleRefresh,
                 color: Colors.deepPurple,
                 child: _laps.isEmpty
-                    ? Stack( // Wrap in a Stack to allow scrolling for the empty view
+                    ? Stack(
                   children: [
-                    ListView(), // This makes the RefreshIndicator work when the list is empty
+                    ListView(),
                     Center(child: _totalLaps > 0 ? const CircularProgressIndicator() : const Text("No race session is active.", style: TextStyle(fontSize: 16, color: Colors.grey))),
                   ],
                 )
@@ -259,7 +399,13 @@ class _SprintSessionsScreenState extends State<SprintSessionsScreen> {
               title: const Text('Simulator Controls'),
               backgroundColor: Colors.deepPurple,
               foregroundColor: Colors.white,
-              automaticallyImplyLeading: false,
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Close',
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
             ),
             Expanded(
               child: Padding(
@@ -329,9 +475,13 @@ class SprintLapCard extends StatelessWidget {
     final isActive = !completed && (state._activeLap == lapNumber);
 
     Color accent;
-    if (completed) accent = Colors.green;
-    else if (isActive) accent = Colors.orange;
-    else accent = Colors.grey;
+    if (completed) {
+      accent = Colors.green;
+    } else if (isActive) {
+      accent = Colors.orange;
+    } else {
+      accent = Colors.grey;
+    }
 
     return Card(
       elevation: 3,
@@ -355,11 +505,11 @@ class SprintLapCard extends StatelessWidget {
                   Text('Finished in $time', style: const TextStyle(fontFamily: 'Montserrat', fontWeight: FontWeight.w700, fontSize: 17)),
                   const SizedBox(height: 7),
                   Row(children: [
-                    Icon(Icons.speed, color: Colors.deepPurple, size: 18),
+                    const Icon(Icons.speed, color: Colors.deepPurple, size: 18),
                     const SizedBox(width: 6),
                     Text(speed ?? '-', style: const TextStyle(fontFamily: 'NunitoSans', fontWeight: FontWeight.w600, fontSize: 14)),
                     const SizedBox(width: 18),
-                    Icon(Icons.straighten, color: Colors.blue, size: 18),
+                    const Icon(Icons.straighten, color: Colors.blue, size: 18),
                     const SizedBox(width: 6),
                     Text(distance ?? '${state._distancePerLap} m', style: const TextStyle(fontFamily: 'NunitoSans', fontWeight: FontWeight.w600, fontSize: 14)),
                   ]),
@@ -370,7 +520,7 @@ class SprintLapCard extends StatelessWidget {
                 children: [
                   Text(isActive ? 'Lap in progress...' : 'Waiting for data...', style: TextStyle(fontFamily: 'Montserrat', fontWeight: FontWeight.w600, fontSize: 16, color: isActive ? Colors.black87 : Colors.grey)),
                   const SizedBox(height: 7),
-                  Text(isActive ? 'Complete the lap to see results' : 'Lap not started yet', style: TextStyle(color: Colors.grey, fontFamily: 'NunitoSans', fontSize: 14)),
+                  Text(isActive ? 'Complete the lap to see results' : 'Lap not started yet', style: const TextStyle(color: Colors.grey, fontFamily: 'NunitoSans', fontSize: 14)),
                 ],
               ),
             ),

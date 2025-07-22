@@ -24,11 +24,18 @@ class HelpScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           const Text(
-            "• Tap the '+' or 'Start Practice' button on the home screen to begin a new session.\n"
-                "• After finishing, your session will be saved and appear in your Achievements.\n"
-                "• Visit the Achievements section to view, share, or review your completed sessions.\n"
-                "• Use Settings to switch units, enable notifications, or clear your data.",
-            style: TextStyle(fontSize: 16),
+            "Welcome to Sprint Tracker! Here's how to get up and running:\n\n"
+                "1. Create an Account: The first step is to sign up or log in. Your data is securely tied to your account.\n\n"
+                "2. The Main Tabs: Use the bottom bar to navigate the app's features:\n"
+                "   • Setup Race: Configure parameters for a new race.\n"
+                "   • Start Race: Begin the race timer and record laps.\n"
+                "   • Sprint Sessions: Review a detailed list of all past races.\n"
+                "   • Statistics: View charts and data on your performance.\n"
+                "   • Achievements: See milestones you've unlocked.\n"
+                "   • Settings: Manage your profile, data, and log out.\n\n"
+                "3. Run Your First Race: First, go to 'Setup Race' to define the distance and laps. Then, move to the 'Start Race' tab to begin. Press 'Lap' to record times and 'Finish' to save the session.\n\n"
+                "4. Review Your Progress: Go to the 'Sprint Sessions' tab to see a list of your completed races. Tap 'Details' on any session to see a full breakdown of each lap.",
+            style: TextStyle(fontSize: 16, height: 1.5),
           ),
           const SizedBox(height: 28),
           const Text(
@@ -41,24 +48,28 @@ class HelpScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _FAQEntry(
-            question: "How do I start a new event or session?",
-            answer: "Press the '+' button or 'Start Practice' on the main screen. Fill in the required details and begin tracking.",
+            question: "How is my race data saved?",
+            answer: "Your session is saved automatically when you press the 'Finish' button on the 'Start Race' screen. The data is stored online and linked to your user account.",
           ),
           _FAQEntry(
-            question: "How can I view or share my past sessions?",
-            answer: "Go to the Achievements section. Select any session to view details or use the Share button to share with friends.",
+            question: "What information is shown in the session details?",
+            answer: "The details dialog shows you the total number of laps and the distance per lap. It also provides a full breakdown of each lap's time and average speed.",
           ),
           _FAQEntry(
-            question: "How do I change distance units (meters/miles)?",
-            answer: "Open the Settings screen and choose your preferred unit under 'Units'.",
+            question: "How do I manage my profile information?",
+            answer: "Navigate to the 'Settings' tab and tap on your user profile at the top. This will take you to a screen where you can manage your details.",
           ),
           _FAQEntry(
-            question: "How do I clear my practice history?",
-            answer: "In Settings, tap 'Clear All History'. Confirm to permanently erase all your session data.",
+            question: "Can I recover data after deleting it?",
+            answer: "No. Deleting a single session from the 'Sprint Sessions' screen or using 'Clear All History' in Settings is a permanent action and cannot be undone.",
           ),
           _FAQEntry(
-            question: "What if I need help or find a bug?",
-            answer: "Contact the developer or support team using the info below.",
+            question: "Why are some settings or tabs empty?",
+            answer: "Features like Statistics, Achievements, and Dark Mode are currently in development and will be enabled in a future update.",
+          ),
+          _FAQEntry(
+            question: "What happens when I log out?",
+            answer: "Logging out securely signs you out of your account. You will need to log back in to access your race history and profile information.",
           ),
           const SizedBox(height: 28),
           const Text(

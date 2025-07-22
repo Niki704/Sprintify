@@ -210,6 +210,15 @@ class _SetupRaceScreenState extends State<SetupRaceScreen> {
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(15.0), borderSide: BorderSide.none),
                   ),
                 ),
+                if (_selectedDistance == 1000)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 12.0, left: 12.0, right: 12.0),
+                    child: Text(
+                      'Note: Reverse Direction mode will be automatically disabled for 1000m races.',
+                      style: TextStyle(color: Colors.deepPurple, fontSize: 12, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 const SizedBox(height: 32.0),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.check, size: 18),

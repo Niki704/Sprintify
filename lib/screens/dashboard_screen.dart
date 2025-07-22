@@ -138,6 +138,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onPressed: () {
               Navigator.of(ctx).pop(); // Close the dialog
             },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.deepPurple,
+            ),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
